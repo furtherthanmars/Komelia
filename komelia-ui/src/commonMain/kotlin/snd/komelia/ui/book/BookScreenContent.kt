@@ -1,75 +1,46 @@
 package snd.komelia.ui.book
 
-import androidx.compose.animation.animateContentSize
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.FlowRowScope
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.ExperimentalLayoutApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedButton
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.flow.filter
 import snd.komelia.komga.api.model.KomeliaBook
 import snd.komelia.offline.sync.model.DownloadEvent
-import snd.komelia.ui.LocalBookDownloadEvents
-import snd.komelia.ui.LocalKomgaState
-import snd.komelia.ui.LocalOfflineMode
-import snd.komelia.ui.LocalWindowWidth
 import snd.komelia.ui.common.BookReadButton
+import snd.komelia.ui.common.readIsSupported
+import snd.komelia.ui.dialogs.ConfirmationDialog
+import snd.komelia.ui.dialogs.permissions.DownloadNotificationRequestDialog
+import snd.komelia.ui.library.SeriesScreenFilter
+import snd.komelia.ui.platform.VerticalScrollbar
+import snd.komelia.ui.platform.WindowSizeClass.*
 import snd.komelia.ui.common.components.ExpandableText
 import snd.komelia.ui.common.images.BookThumbnail
 import snd.komelia.ui.common.menus.BookActionsMenu
 import snd.komelia.ui.common.menus.BookMenuActions
-import snd.komelia.ui.common.readIsSupported
-import snd.komelia.ui.dialogs.ConfirmationDialog
-import snd.komelia.ui.dialogs.book.edit.BookEditDialog
-import snd.komelia.ui.dialogs.permissions.DownloadNotificationRequestDialog
-import snd.komelia.ui.library.SeriesScreenFilter
-import snd.komelia.ui.platform.VerticalScrollbar
-import snd.komelia.ui.platform.WindowSizeClass.COMPACT
-import snd.komelia.ui.platform.WindowSizeClass.EXPANDED
-import snd.komelia.ui.platform.WindowSizeClass.FULL
-import snd.komelia.ui.platform.WindowSizeClass.MEDIUM
-import snd.komelia.ui.readlist.BookReadListsContent
-import snd.komga.client.library.KomgaLibrary
-import snd.komga.client.readlist.KomgaReadList
+import snd.komelia.client.library.KomgaLibrary
+import snd.komelia.client.readlist.KomgaReadList
+import java.io.File
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -80,7 +51,6 @@ fun BookScreenContent(
     onBookReadPress: (markReadProgress: Boolean) -> Unit,
     onBookDownload: () -> Unit,
     onBookDownloadDelete: () -> Unit,
-
     readLists: Map<KomgaReadList, List<KomeliaBook>>,
     onReadListClick: (KomgaReadList) -> Unit,
     onReadListBookPress: (KomeliaBook, KomgaReadList) -> Unit,
@@ -88,14 +58,10 @@ fun BookScreenContent(
     onFilterClick: (SeriesScreenFilter) -> Unit,
     cardWidth: Dp
 ) {
-
     val scrollState: ScrollState = rememberScrollState()
     Column(modifier = Modifier.fillMaxSize()) {
         if (book == null || library == null) return
-        BookToolBar(
-            book = book,
-            bookMenuActions = bookMenuActions,
-        )
+        BookToolBar(book = book, bookMenuActions = bookMenuActions)
 
         val contentPadding = when (LocalWindowWidth.current) {
             COMPACT, MEDIUM -> Modifier.padding(5.dp)
@@ -107,7 +73,7 @@ fun BookScreenContent(
             Column(
                 modifier = contentPadding
                     .fillMaxWidth()
-                    .verticalScroll(state = scrollState),
+                    .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 horizontalAlignment = Alignment.Start
             ) {
@@ -117,7 +83,6 @@ fun BookScreenContent(
                         modifier = Modifier
                             .heightIn(min = 100.dp, max = 400.dp)
                             .widthIn(min = 300.dp, max = 500.dp)
-                            .animateContentSize()
                     )
                     BookMainInfo(
                         book = book,
@@ -128,25 +93,6 @@ fun BookScreenContent(
                         onDownloadDelete = onBookDownloadDelete
                     )
                 }
-
-                BookInfoColumn(
-                    publisher = null,
-                    genres = null,
-                    authors = book.metadata.authors,
-                    tags = book.metadata.tags,
-                    links = book.metadata.links,
-                    sizeInMiB = book.size,
-                    mediaType = book.media.mediaType,
-                    isbn = book.metadata.isbn,
-                    fileUrl = book.url,
-                    onFilterClick = onFilterClick,
-                )
-                BookReadListsContent(
-                    readLists = readLists,
-                    onReadListClick = onReadListClick,
-                    onBookClick = onReadListBookPress,
-                    cardWidth = cardWidth
-                )
             }
             VerticalScrollbar(scrollState, Modifier.align(Alignment.CenterEnd))
         }
@@ -154,18 +100,15 @@ fun BookScreenContent(
 }
 
 @Composable
-fun BookToolBar(
-    book: KomeliaBook,
-    bookMenuActions: BookMenuActions,
-) {
+fun BookToolBar(book: KomeliaBook, bookMenuActions: BookMenuActions) {
     Row(
         modifier = Modifier.padding(start = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             book.metadata.title,
             maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.weight(1f, false)
         )
         ToolbarBookActions(book, bookMenuActions)
@@ -173,38 +116,20 @@ fun BookToolBar(
 }
 
 @Composable
-private fun ToolbarBookActions(
-    book: KomeliaBook,
-    bookMenuActions: BookMenuActions,
-) {
+private fun ToolbarBookActions(book: KomeliaBook, bookMenuActions: BookMenuActions) {
     Row {
-        Box {
-            var expandActions by remember { mutableStateOf(false) }
-            IconButton(onClick = { expandActions = true }) {
-                Icon(Icons.Default.MoreVert, contentDescription = null)
-            }
-            BookActionsMenu(
-                book = book,
-                actions = bookMenuActions,
-                expanded = expandActions,
-                showEditOption = false,
-                showDownloadOption = false,
-                onDismissRequest = { expandActions = false }
-            )
+        var expandActions by remember { mutableStateOf(false) }
+        IconButton(onClick = { expandActions = true }) {
+            Icon(Icons.Default.MoreVert, contentDescription = null)
         }
-
-        val isAdmin = LocalKomgaState.current.authenticatedUser.collectAsState().value?.roleAdmin() ?: true
-        val isOffline = LocalOfflineMode.current.collectAsState().value
-        var showEditDialog by remember { mutableStateOf(false) }
-
-        if (isAdmin && !isOffline) {
-            IconButton(onClick = { showEditDialog = true }) {
-                Icon(Icons.Default.Edit, null)
-            }
-        }
-        if (showEditDialog) {
-            BookEditDialog(book = book, onDismissRequest = { showEditDialog = false })
-        }
+        BookActionsMenu(
+            book = book,
+            actions = bookMenuActions,
+            expanded = expandActions,
+            showEditOption = false,
+            showDownloadOption = false,
+            onDismissRequest = { expandActions = false }
+        )
     }
 }
 
@@ -223,25 +148,18 @@ private fun FlowRowScope.BookMainInfo(
         else -> Dp.Unspecified
     }
 
+    val context = LocalContext.current
+
     Column(
         modifier = Modifier.weight(1f, false).widthIn(min = 350.dp, max = maxWidth),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        BookInfoRow(
-            book = book,
-            onSeriesButtonClick = onSeriesParentSeriesPress,
-        )
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-
+        Row {
             if (!book.deleted && !library.unavailable) {
                 if (readIsSupported(book)) {
                     BookReadButton(
-                        onRead = { onBookReadPress(true) },
-                        onIncognitoRead = { onBookReadPress(false) },
+                        onRead = { openInReadest(context, book) },
+                        onIncognitoRead = { openInReadest(context, book) }
                     )
                 }
                 if (!book.downloaded || book.isLocalFileOutdated) {
@@ -257,7 +175,6 @@ private fun FlowRowScope.BookMainInfo(
                 }
             }
         }
-        HorizontalDivider()
         ExpandableText(
             text = book.metadata.summary,
             style = MaterialTheme.typography.bodyMedium
@@ -265,67 +182,50 @@ private fun FlowRowScope.BookMainInfo(
     }
 }
 
-
-@Composable
-fun DownloadButton(
-    book: KomeliaBook,
-    onDownload: () -> Unit,
-) {
-    var showDownloadConfirmation by remember { mutableStateOf(false) }
-    val downloadEvents = LocalBookDownloadEvents.current
-    var downloadEvent: DownloadEvent? by remember { mutableStateOf(null) }
-    LaunchedEffect(downloadEvents, book) {
-        downloadEvents?.filter { it.bookId == book.id }?.collect { downloadEvent = it }
-    }
-
-    ElevatedButton(
-        enabled = downloadEvent == null,
-        onClick = { showDownloadConfirmation = true },
-        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
-        elevation = null
-    ) {
-        when (val event = downloadEvent) {
-            is DownloadEvent.BookDownloadProgress -> {
-                Box(
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(
-                        progress = { event.completed / event.total.toFloat() },
-                        color = MaterialTheme.colorScheme.tertiary,
-                        trackColor = MaterialTheme.colorScheme.primary,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(24.dp),
-                    )
-                    Icon(
-                        imageVector = Icons.Default.Download,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
-
-            else -> {
-                Icon(Icons.Default.Download, null)
-            }
+// 🔹 Duplicate-safe, Scoped Storage–safe Readest opener
+fun openInReadest(context: Context, book: KomeliaBook) {
+    try {
+        if (!book.downloaded) {
+            Toast.makeText(context, "Book not downloaded yet", Toast.LENGTH_SHORT).show()
+            return
         }
-        Spacer(Modifier.width(3.dp))
-        Text("Download")
 
+        val prefs = context.getSharedPreferences("komelia_prefs", Context.MODE_PRIVATE)
+        val downloadRootPath = prefs.getString("download_path", null)
+        val rootDir = if (downloadRootPath != null) File(downloadRootPath) else context.getExternalFilesDir("Komelia") ?: context.filesDir
 
-    }
+        val sanitizedBookName = book.name.replace(Regex("[^A-Za-z0-9 _\\-]"), "").replace(" ", "_")
+        val matchingFiles = rootDir.listFiles()?.filter {
+            it.nameWithoutExtension.equals(sanitizedBookName, ignoreCase = true)
+        } ?: emptyList()
 
-    if (showDownloadConfirmation) {
-        var permissionRequested by remember { mutableStateOf(false) }
-        DownloadNotificationRequestDialog { permissionRequested = true }
-
-        if (permissionRequested) {
-            ConfirmationDialog(
-                body = "Download book ${book.name}",
-                onDialogConfirm = onDownload,
-                onDialogDismiss = { showDownloadConfirmation = false }
-            )
+        if (matchingFiles.isEmpty()) {
+            Toast.makeText(context, "Downloaded file not found", Toast.LENGTH_SHORT).show()
+            return
         }
-    }
 
+        val file = matchingFiles.maxByOrNull { it.lastModified() }!!
+        val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+
+        val mimeType = when (file.extension.lowercase()) {
+            "epub" -> "application/epub+zip"
+            "cbz" -> "application/vnd.comicbook+zip"
+            "pdf" -> "application/pdf"
+            else -> "*/*"
+        }
+
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, mimeType)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            setPackage("com.bilingify.readest")
+        }
+
+        context.startActivity(intent)
+
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(context, "Readest not installed", Toast.LENGTH_SHORT).show()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        Toast.makeText(context, "Failed to open book", Toast.LENGTH_SHORT).show()
+    }
 }
